@@ -4,8 +4,7 @@ import { TelegramBot } from "./telegram";
 
 // --- GLOBAL CONFIG ---
 const PARSE_MODE = "HTML";
-const PLACEHOLDER_POSTER =
-    "https://iili.io/K3MHOWg.png";
+const PLACEHOLDER_POSTER = "https://iili.io/K3MHOWg.png";
 const START_IMG = "https://iili.io/K3EPnKg.md.jpg";
 const UPDATE_CHANNEL = "https://t.me/Blaze_Updatez";
 const CACHE_TTL = 60 * 60 * 2; // 2 hours
@@ -36,7 +35,6 @@ function getMediaCacheKey(mediaId) {
 
 function parseCallbackData(data) {
     if (!data) return { action: "noop", params: [] };
-
     const [action, ...params] = data.split(":");
     return { action, params };
 }
@@ -71,37 +69,31 @@ function buildGridKeyboard(
             text: label,
             callback_data: `pick:${mediaType}:${lang}:${i}:${mediaId}`,
         });
-
         if (row.length === cols) {
             rows.push(row);
             row = [];
         }
     }
-
     if (row.length) rows.push(row);
 
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
     const navRow = [];
-
     if (pageIndex > 0) {
         navRow.push({
             text: "◀ Prev",
             callback_data: `page:${mediaType}:${lang}:${pageIndex - 1}:${mediaId}`,
         });
     }
-
     navRow.push({
         text: `Page ${pageIndex + 1}/${totalPages}`,
         callback_data: "noop",
     });
-
     if (pageIndex < totalPages - 1) {
         navRow.push({
             text: "Next ▶",
             callback_data: `page:${mediaType}:${lang}:${pageIndex + 1}:${mediaId}`,
         });
     }
-
     rows.push(navRow);
 
     const actionRow = [
@@ -112,7 +104,6 @@ function buildGridKeyboard(
         { text: "🌐 Languages", callback_data: `langs:${mediaType}:${mediaId}` },
         { text: "« Back", callback_data: `back:main:${mediaId}` },
     ];
-
     rows.push(actionRow);
 
     return { inline_keyboard: rows };
@@ -125,7 +116,6 @@ async function sendMainMenu(bot, chatId, data, messageId = null) {
             0,
             700
         )}</i>`;
-
     const keyboard = {
         inline_keyboard: [
             [
@@ -142,7 +132,6 @@ async function sendMainMenu(bot, chatId, data, messageId = null) {
             [{ text: "❌ Close", callback_data: `close` }],
         ],
     };
-
     const previewUrl =
         data.images?.backdrops?.en?.[0] || data.poster_url || PLACEHOLDER_POSTER;
     const link_preview_options = {
@@ -246,7 +235,6 @@ async function sendDetailsPage(bot, chatId, data, messageId) {
     const title = `<b>${escapeHtml(data.title || "Unknown Title")}</b> (${data.year || "N/A"
         })`;
     const tagline = data.tagline ? `\n<i>${escapeHtml(data.tagline)}</i>` : "";
-
     let details = ``;
     if (data.rating)
         details += `\n<b>Rating:</b> ⭐ ${escapeHtml(String(data.rating))}`;
@@ -267,25 +255,20 @@ async function sendDetailsPage(bot, chatId, data, messageId) {
         const formattedBoxOffice = formatBoxOffice(data.box_office);
         details += `\n<b>Box Office:</b> ${escapeHtml(formattedBoxOffice)}`;
     }
-
     const text = `${title}${tagline}\n${details}`;
-
     const imdbUrl = data.imdb_id
         ? `https://www.imdb.com/title/${data.imdb_id}/`
         : null;
     const tmdbUrl = data.url;
-
     const buttonRow = [];
     if (imdbUrl) buttonRow.push({ text: "Open IMDb", url: imdbUrl });
     if (tmdbUrl) buttonRow.push({ text: "Open TMDB", url: tmdbUrl });
-
     const keyboard = {
         inline_keyboard: [
             buttonRow,
             [{ text: "« Back", callback_data: `back:main:${data.media_id}` }],
         ],
     };
-
     const previewUrl =
         data.images?.backdrops?.en?.[0] || data.poster_url || PLACEHOLDER_POSTER;
     const link_preview_options = {
@@ -294,7 +277,6 @@ async function sendDetailsPage(bot, chatId, data, messageId) {
         prefer_large_media: true,
         show_above_text: true,
     };
-
     await bot.editMessageText(chatId, messageId, text, {
         parse_mode: PARSE_MODE,
         reply_markup: keyboard,
@@ -319,14 +301,12 @@ async function sendLanguageSelection(bot, message, mediaData, mediaType) {
             },
         ];
     });
-
     buttons.push([
         {
             text: "« Back to Grid",
             callback_data: `view:${mediaType}:en:0:${mediaData.media_id}`,
         },
     ]);
-
     await bot.editMessageText(
         message.chat.id,
         message.message_id,
@@ -342,6 +322,7 @@ async function sendLanguageSelection(bot, message, mediaData, mediaType) {
 async function handleMessage(bot, message, env) {
     const chatId = message.chat.id;
     const text = (message.text || "").trim();
+    const userId = message.from.id;
 
     try {
         if (text.startsWith("/")) {
@@ -349,7 +330,8 @@ async function handleMessage(bot, message, env) {
             const buttons = [
                 [{ text: "Update Channel", url: UPDATE_CHANNEL }],
             ];
-            if (command === "/start")
+            if (command === "/start") {
+                await env.USER_STORE.put(String(userId), "1");
                 return bot.sendMessage(
                     chatId,
                     `<blockquote><b>Welcome to PosterFlix</b>\nSend a movie or TV show name to begin.\n\n<i>Example:</i> <code>The Matrix 1999</code></blockquote>`,
@@ -367,6 +349,7 @@ async function handleMessage(bot, message, env) {
                         },
                     }
                 );
+            }
             if (command === "/about")
                 return bot.sendMessage(chatId, ABOUT_TEXT, { parse_mode: PARSE_MODE });
             if (command === "/faq")
@@ -375,6 +358,11 @@ async function handleMessage(bot, message, env) {
                 return bot.sendMessage(chatId, DISCLAIMER_TEXT, {
                     parse_mode: PARSE_MODE,
                 });
+            if (command === "/usersx") {
+                const keys = await env.USER_STORE.list();
+                const userCount = keys.keys.length;
+                return bot.sendMessage(chatId, `📊 <b>Total Users:</b> ${userCount}`, { parse_mode: PARSE_MODE });
+            }
         }
 
         if (!text) return;
