@@ -1,61 +1,80 @@
 // src/telegram.js
 
 /**
- * A lightweight library for interacting with the Telegram Bot API from a Cloudflare Worker.
+ * Minimal Telegram wrapper for Cloudflare Workers / Workers-like environment.
+ * Provides send/edit/delete helper functions used by the bot code.
  */
 export class TelegramBot {
-    constructor(token, env) {
-        this.apiUrl = `https://api.telegram.org/bot${token}`;
-        this.env = env;
-    }
+  constructor(token, env) {
+    this.apiUrl = `https://api.telegram.org/bot${token}`;
+    this.env = env;
+  }
 
-    /**
-     * A generic method to make API calls to Telegram.
-     * @param {string} methodName The Telegram API method name.
-     * @param {object} payload The JSON payload to send.
-     */
-    async apiCall(methodName, payload) {
-        const response = await fetch(`${this.apiUrl}/${methodName}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-        return response.json();
+  async apiCall(methodName, payload) {
+    try {
+      const res = await fetch(`${this.apiUrl}/${methodName}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!json || json.ok === false) {
+        // include body for debugging when available
+        throw new Error(`Telegram API ${methodName} failed: ${JSON.stringify(json)}`);
+      }
+      return json;
+    } catch (err) {
+      console.error(`Telegram API call ${methodName} failed`, err);
+      throw err;
     }
+  }
 
-    sendMessage(chat_id, text, options = {}) {
-        return this.apiCall('sendMessage', { chat_id, text, ...options });
-    }
+  // Core methods used by bot
+  sendMessage(chat_id, text, options = {}) {
+    return this.apiCall('sendMessage', { chat_id, text, ...options });
+  }
 
-    sendPhoto(chat_id, photo, options = {}) {
-        return this.apiCall('sendPhoto', { chat_id, photo, ...options });
-    }
+  sendPhoto(chat_id, photo, options = {}) {
+    return this.apiCall('sendPhoto', { chat_id, photo, ...options });
+  }
 
-    editMessageCaption(chat_id, message_id, caption, options = {}) {
-        return this.apiCall('editMessageCaption', { chat_id, message_id, caption, ...options });
-    }
+  editMessageText(chat_id, message_id, text, options = {}) {
+    return this.apiCall('editMessageText', { chat_id, message_id, text, ...options });
+  }
 
-    editMessageMedia(chat_id, message_id, media, options = {}) {
-        return this.apiCall('editMessageMedia', { chat_id, message_id, media, ...options });
-    }
-    
-    answerCallbackQuery(callback_query_id, options = {}) {
-        return this.apiCall('answerCallbackQuery', { callback_query_id, ...options });
-    }
+  editMessageCaption(chat_id, message_id, caption, options = {}) {
+    return this.apiCall('editMessageCaption', { chat_id, message_id, caption, ...options });
+  }
 
-    setMyCommands(commands) {
-        return this.apiCall('setMyCommands', { commands });
-    }
+  editMessageMedia(chat_id, message_id, media, options = {}) {
+    return this.apiCall('editMessageMedia', { chat_id, message_id, media, ...options });
+  }
 
-    setWebhook(url, options = {}) {
-        return this.apiCall('setWebhook', { url, ...options });
-    }
+  editMessageReplyMarkup(chat_id, message_id, reply_markup = {}) {
+    return this.apiCall('editMessageReplyMarkup', { chat_id, message_id, reply_markup });
+  }
 
-    deleteWebhook() {
-        return this.apiCall('deleteWebhook');
-    }
+  deleteMessage(chat_id, message_id) {
+    return this.apiCall('deleteMessage', { chat_id, message_id });
+  }
 
-    getWebhookInfo() {
-        return this.apiCall('getWebhookInfo');
-    }
+  answerCallbackQuery(callback_query_id, options = {}) {
+    return this.apiCall('answerCallbackQuery', { callback_query_id, ...options });
+  }
+
+  setMyCommands(commands) {
+    return this.apiCall('setMyCommands', { commands });
+  }
+
+  setWebhook(url, options = {}) {
+    return this.apiCall('setWebhook', { url, ...options });
+  }
+
+  deleteWebhook() {
+    return this.apiCall('deleteWebhook');
+  }
+
+  getWebhookInfo() {
+    return this.apiCall('getWebhookInfo');
+  }
 }
