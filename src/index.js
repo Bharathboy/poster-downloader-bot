@@ -167,6 +167,10 @@ async function handleCallback(bot, callbackQuery, env) {
                 await bot.editMessageText(message.chat.id, message.message_id, `<b>Select Language</b> for ${escapeHtml(media_type)}`, { parse_mode: PARSE_MODE, reply_markup: { inline_keyboard: buttons } });
                 break;
             }
+            case 'details': {
+                await sendDetailsPage(bot, message.chat.id, data, message.message_id);
+                break;
+            }
             case 'back': {
                 await sendMainMenu(bot, message.chat.id, data, message.message_id);
                 break;
@@ -181,10 +185,12 @@ async function handleCallback(bot, callbackQuery, env) {
 
 async function sendMainMenu(bot, chat_id, data, message_id = null) {
   const caption = `<b>${escapeHtml(data.title || 'Unknown Title')}</b> (${data.year || 'N/A'})\n\n<i>${escapeHtml(data.plot || 'No summary available.').substring(0, 700)}</i>`;
+  
+  // --- MODIFICATION: Updated Keyboard ---
   const keyboard = {
     inline_keyboard: [
         [{ text: '🖼️ View Posters', callback_data: `view:posters:en:0:${data.media_id}` }, { text: '🏞️ View Backdrops', callback_data: `view:backdrops:en:0:${data.media_id}` }],
-        [{ text: '🔁 Share', switch_inline_query: `${data.title || ''}` }, { text: 'Open TMDB', url: data.url }]
+        [{ text: 'ℹ️ More Info', callback_data: `details:${data.media_id}` }, { text: '🔁 Share', switch_inline_query: `${data.title || ''}` }]
     ]
   };
   
@@ -220,6 +226,36 @@ async function sendResultsGrid(bot, chat_id, data, media_type, lang, pageIndex, 
     await bot.editMessageText(chat_id, message_id, caption, { parse_mode: PARSE_MODE, reply_markup: keyboard, link_preview_options });
 }
 
+// --- MODIFICATION: New function for details page ---
+async function sendDetailsPage(bot, chat_id, data, message_id) {
+    const title = `<b>${escapeHtml(data.title || 'Unknown Title')}</b> (${data.year || 'N/A'})`;
+    const rating = data.rating ? `⭐ ${escapeHtml(String(data.rating))}` : 'N/A';
+    const runtime = data.runtime ? `${escapeHtml(String(data.runtime))}` : 'N/A';
+    const genres = data.genres ? `${escapeHtml(data.genres)}` : 'N/A';
+    const director = data.director ? `<b>Director:</b> ${escapeHtml(data.director)}` : '';
+    const cast = data.cast ? `<b>Cast:</b> ${escapeHtml(data.cast.split(', ').slice(0, 5).join(', '))}` : '';
+
+    const text = `${title}\n\n${rating} | ${runtime} | ${genres}\n\n${director}\n${cast}`;
+    
+    const imdbUrl = data.imdb_id ? `https://www.imdb.com/title/${data.imdb_id}/` : null;
+    const tmdbUrl = data.url;
+
+    const keyboard = {
+        inline_keyboard: [
+            [{ text: 'Open IMDb', url: imdbUrl }, { text: 'Open TMDB', url: tmdbUrl }],
+            [{ text: '« Back', callback_data: `back:main:${data.media_id}` }]
+        ]
+    };
+    
+    // Filter out the IMDb button if no ID is available
+    if (!imdbUrl) {
+        keyboard.inline_keyboard[0] = [{ text: 'Open TMDB', url: tmdbUrl }];
+    }
+
+    await bot.editMessageText(chat_id, message_id, text, { parse_mode: PARSE_MODE, reply_markup: keyboard, link_preview_options: { is_disabled: true }});
+}
+
+
 // --- Utility Functions ---
 
 function buildGridKeyboard(totalItems, pageIndex, pageSize, media_type, lang, media_id, activeIndex) {
@@ -244,7 +280,6 @@ function buildGridKeyboard(totalItems, pageIndex, pageSize, media_type, lang, me
     if (pageIndex < totalPages - 1) navRow.push({ text: 'Next ▶', callback_data: `page:${media_type}:${lang}:${pageIndex + 1}:${media_id}` });
     rows.push(navRow);
 
-    // --- MODIFICATION: New action row ---
     const actionRow = [
         { text: '📩 Send To Me', callback_data: `send:${media_type}:${lang}:${activeIndex}:${media_id}` },
         { text: '🌐 Languages', callback_data: `langs:${media_type}:${media_id}` },
