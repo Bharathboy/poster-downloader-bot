@@ -7,14 +7,14 @@ const PARSE_MODE = 'HTML';
 const PLACEHOLDER_POSTER = 'https://via.placeholder.com/600x900.png?text=No+Image';
 const CACHE_TTL = 60 * 60 * 2; // 2 hours
 const GRID_PAGE_SIZE = 20;
-const GRID_COLS = 4;
+const GRID_COLS = 5;
 
 // --- Static Content (HTML formatted) ---
 const ABOUT_TEXT = `<b>About PosterFlix</b>\n\nThis bot helps you preview and download official movie & TV posters and backdrops from The Movie Database (TMDB).\n\n<b>Features</b>\n• High-resolution image access\n• Multi-language support\n• Smart search with year hints`;
 const FAQ_TEXT = `<b>Frequently Asked Questions</b>\n\n<b>Q: Do you host any images?</b>\nA: No — images are linked directly from TMDB in real time.\n\n<b>Q: Is this bot affiliated with TMDB?</b>\nA: No. This is an independent project using TMDB's public API.`;
 const DISCLAIMER_TEXT = `<b>Legal Disclaimer</b>\n\nThis bot uses the TMDB API and is not endorsed by TMDB. All images and copyrights belong to their respective owners. Use for personal, non-commercial purposes only.`;
 
-// ---------------- export worker handler ----------------
+
 export default {
   async fetch(request, env, ctx) {
     const bot = new TelegramBot(env.BOT_TOKEN, env);
@@ -56,7 +56,7 @@ export default {
   },
 };
 
-/* -------------------- Helpers & Handlers -------------------- */
+// -------------------- Main Handlers --------------------
 
 async function handleUpdate(bot, update, env) {
   try {
@@ -68,10 +68,6 @@ async function handleUpdate(bot, update, env) {
   } catch (err) {
     console.error('handleUpdate error', err);
   }
-}
-
-function escapeHtml(text = '') {
-  return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 async function handleMessage(bot, message, env) {
@@ -133,8 +129,9 @@ async function handleCallback(bot, callbackQuery, env) {
 
         switch (action) {
             case 'view': {
-                const [media_type] = params;
-                await sendResultsGrid(bot, message.chat.id, data, media_type, 'en', 0, message.message_id);
+                const [media_type, lang, pageStr] = params;
+                const page = parseInt(pageStr, 10) || 0;
+                await sendResultsGrid(bot, message.chat.id, data, media_type, lang, page, message.message_id);
                 break;
             }
             case 'page': {
@@ -144,7 +141,9 @@ async function handleCallback(bot, callbackQuery, env) {
             }
             case 'pick': {
                 const [media_type, lang, indexStr] = params;
-                await showImagePreview(bot, message.chat.id, data, media_type, lang, parseInt(indexStr, 10), message.message_id);
+                const activeIndex = parseInt(indexStr, 10);
+                const pageIndex = Math.floor(activeIndex / GRID_PAGE_SIZE);
+                await sendResultsGrid(bot, message.chat.id, data, media_type, lang, pageIndex, message.message_id, activeIndex);
                 break;
             }
             case 'send': {
@@ -164,7 +163,7 @@ async function handleCallback(bot, callbackQuery, env) {
                     const label = `${langKey === 'all' ? 'All' : (langKey.length === 2 ? langKey.toUpperCase() : langKey)} (${count})`;
                     return [{ text: label, callback_data: `view:${media_type}:${langKey}:0:${media_id}` }];
                 });
-                buttons.push([{ text: '« Back to Results', callback_data: `view:${media_type}:en:0:${media_id}` }]);
+                buttons.push([{ text: '« Back to Grid', callback_data: `view:${media_type}:en:0:${media_id}` }]);
                 await bot.editMessageText(message.chat.id, message.message_id, `<b>Select Language</b> for ${escapeHtml(media_type)}`, { parse_mode: PARSE_MODE, reply_markup: { inline_keyboard: buttons } });
                 break;
             }
@@ -184,12 +183,11 @@ async function sendMainMenu(bot, chat_id, data, message_id = null) {
   const caption = `<b>${escapeHtml(data.title || 'Unknown Title')}</b> (${data.year || 'N/A'})\n\n<i>${escapeHtml(data.plot || 'No summary available.').substring(0, 700)}</i>`;
   const keyboard = {
     inline_keyboard: [
-        [{ text: '🖼️ View Posters', callback_data: `view:posters:${data.media_id}` }, { text: '🏞️ View Backdrops', callback_data: `view:backdrops:${data.media_id}` }],
+        [{ text: '🖼️ View Posters', callback_data: `view:posters:en:0:${data.media_id}` }, { text: '🏞️ View Backdrops', callback_data: `view:backdrops:en:0:${data.media_id}` }],
         [{ text: '🔁 Share', switch_inline_query: `${data.title || ''}` }, { text: 'Open TMDB', url: data.url }]
     ]
   };
   
-  // --- MODIFICATION: Use backdrop for preview ---
   const previewUrl = data.images?.backdrops?.en?.[0] || data.poster_url || PLACEHOLDER_POSTER;
   const link_preview_options = { is_disabled: false, url: previewUrl, prefer_large_media: true, show_above_text: true };
 
@@ -200,7 +198,7 @@ async function sendMainMenu(bot, chat_id, data, message_id = null) {
   }
 }
 
-async function sendResultsGrid(bot, chat_id, data, media_type, lang, pageIndex, message_id) {
+async function sendResultsGrid(bot, chat_id, data, media_type, lang, pageIndex, message_id, activeIndex = -1) {
     const imageList = (data.images?.[media_type]?.[lang]) || [];
     const total = imageList.length;
 
@@ -208,58 +206,30 @@ async function sendResultsGrid(bot, chat_id, data, media_type, lang, pageIndex, 
         return bot.editMessageText(chat_id, message_id, `<b>${escapeHtml(data.title)}</b>\n\n<i>No ${escapeHtml(media_type)} found for this language.</i>`, { parse_mode: PARSE_MODE, reply_markup: { inline_keyboard: [[{ text: '🌐 Change Language', callback_data: `langs:${media_type}:${data.media_id}` }, { text: '« Back', callback_data: `back:main:${data.media_id}` }]] } });
     }
 
-    const pages = paginateArray(imageList, GRID_PAGE_SIZE);
-    const page = Math.max(0, Math.min(pageIndex, pages.length - 1));
-    const sampleImage = pages[page][0] || PLACEHOLDER_POSTER;
-
-    const caption = `<b>${escapeHtml(data.title)}</b> — <i>${escapeHtml(media_type)}</i>\nSelect an image to preview:`;
-    const keyboard = buildGridKeyboard(total, page, GRID_PAGE_SIZE, media_type, lang, data.media_id);
-    const link_preview_options = { is_disabled: false, url: sampleImage, prefer_large_media: true, show_above_text: true };
-
-    await bot.editMessageText(chat_id, message_id, caption, { parse_mode: PARSE_MODE, reply_markup: keyboard, link_preview_options });
-}
-
-async function showImagePreview(bot, chat_id, data, media_type, lang, index, message_id) {
-    const image = (data.images?.[media_type]?.[lang] || [])[index];
-    if (!image) {
-        return bot.editMessageText(chat_id, message_id, `<b>Image not found.</b>`, { parse_mode: PARSE_MODE });
+    const page = Math.max(0, Math.min(pageIndex, Math.ceil(total / GRID_PAGE_SIZE) - 1));
+    if (activeIndex === -1) {
+        activeIndex = page * GRID_PAGE_SIZE;
     }
+    activeIndex = Math.max(0, Math.min(activeIndex, total - 1));
 
-    const caption = `<b>${escapeHtml(data.title)}</b> — <i>${escapeHtml(media_type)}</i>\n<code>Image ${index + 1}</code>`;
-    
-    // --- MODIFICATION: Updated Keyboard ---
-    const keyboard = {
-        inline_keyboard: [
-            [
-                { text: '📩 Send To Me', callback_data: `send:${media_type}:${lang}:${index}:${data.media_id}` },
-                { text: '🔙 Back to Grid', callback_data: `view:${media_type}:${lang}:${Math.floor(index / GRID_PAGE_SIZE)}:${data.media_id}` }
-            ],
-            [
-                { text: '🌐 Languages', callback_data: `langs:${media_type}:${data.media_id}` },
-                { text: '❌ Close', callback_data: `back:main:${data.media_id}` }
-            ]
-        ]
-    };
+    const previewImage = imageList[activeIndex] || imageList[0] || PLACEHOLDER_POSTER;
+    const caption = `<b>${escapeHtml(data.title)}</b> — <i>${escapeHtml(media_type)} (${lang.toUpperCase()})</i>\nPreviewing image ${activeIndex + 1}/${total}. Select a number to change the preview.`;
+    const keyboard = buildGridKeyboard(total, page, GRID_PAGE_SIZE, media_type, lang, data.media_id, activeIndex);
+    const link_preview_options = { is_disabled: false, url: previewImage, prefer_large_media: true, show_above_text: true };
 
-    const link_preview_options = { is_disabled: false, url: image, prefer_large_media: true, show_above_text: true };
     await bot.editMessageText(chat_id, message_id, caption, { parse_mode: PARSE_MODE, reply_markup: keyboard, link_preview_options });
 }
 
 // --- Utility Functions ---
 
-function paginateArray(arr = [], pageSize = GRID_PAGE_SIZE) {
-  const pages = [];
-  for (let i = 0; i < arr.length; i += pageSize) pages.push(arr.slice(i, i + pageSize));
-  return pages;
-}
-
-function buildGridKeyboard(totalItems, pageIndex, pageSize, media_type, lang, media_id) {
+function buildGridKeyboard(totalItems, pageIndex, pageSize, media_type, lang, media_id, activeIndex) {
     const start = pageIndex * pageSize;
     const end = Math.min(start + pageSize, totalItems);
     const rows = [];
     let row = [];
     for (let i = start; i < end; i++) {
-        row.push({ text: `${i + 1}`, callback_data: `pick:${media_type}:${lang}:${i}:${media_id}` });
+        const label = i === activeIndex ? `◉ ${i + 1} ◉` : `${i + 1}`;
+        row.push({ text: label, callback_data: `pick:${media_type}:${lang}:${i}:${media_id}` });
         if (row.length === GRID_COLS) {
             rows.push(row);
             row = [];
@@ -272,11 +242,25 @@ function buildGridKeyboard(totalItems, pageIndex, pageSize, media_type, lang, me
     if (pageIndex > 0) navRow.push({ text: '◀ Prev', callback_data: `page:${media_type}:${lang}:${pageIndex - 1}:${media_id}` });
     navRow.push({ text: `Page ${pageIndex + 1}/${totalPages}`, callback_data: 'noop' });
     if (pageIndex < totalPages - 1) navRow.push({ text: 'Next ▶', callback_data: `page:${media_type}:${lang}:${pageIndex + 1}:${media_id}` });
-
     rows.push(navRow);
-    rows.push([
+
+    // --- MODIFICATION: New action row ---
+    const actionRow = [
+        { text: '📩 Send To Me', callback_data: `send:${media_type}:${lang}:${activeIndex}:${media_id}` },
         { text: '🌐 Languages', callback_data: `langs:${media_type}:${media_id}` },
-        { text: '« Back', callback_data: `back:main:${media_id}` }
-    ]);
+        { text: '❌ Close', callback_data: `back:main:${media_id}` }
+    ];
+    rows.push(actionRow);
+
     return { inline_keyboard: rows };
+}
+
+function paginateArray(arr = [], pageSize = GRID_PAGE_SIZE) {
+  const pages = [];
+  for (let i = 0; i < arr.length; i += pageSize) pages.push(arr.slice(i, i + pageSize));
+  return pages;
+}
+
+function escapeHtml(text = '') {
+  return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
