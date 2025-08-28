@@ -5,8 +5,8 @@ import { TelegramBot } from "./telegram";
 // --- GLOBAL CONFIG ---
 const PARSE_MODE = "HTML";
 const PLACEHOLDER_POSTER =
-    "https://via.placeholder.com/600x900.png?text=No+Image";
-const START_IMG = "https://iili.io/K2LIM79.md.jpg";
+    "https://iili.io/K3MHOWg.png";
+const START_IMG = "https://iili.io/K3EPnKg.md.jpg";
 const UPDATE_CHANNEL = "https://t.me/Blaze_Updatez";
 const CACHE_TTL = 60 * 60 * 2; // 2 hours
 const GRID_PAGE_SIZE = 20;
@@ -504,11 +504,10 @@ async function handleCallback(bot, callbackQuery, env) {
                 const image = (data.images?.[media_type]?.[lang] || [])[index];
                 if (image) {
                     const lang_name =
-                        lang.length === 2 ? lang.toUpperCase() : "No Language";
-                    // This is the updated line
+                        lang.length === 2 ? lang.toUpperCase() : "N/A";
                     const caption = `<a href="${image}"><b>${escapeHtml(
                         data.title || ""
-                    )}</b></a>\n<i>${escapeHtml(
+                    )}</b></a> | <a href="${UPDATE_CHANNEL}"><b>Join</b></a>\n<i>${escapeHtml(
                         media_type
                     )} | Language: ${lang_name} | Image #${index + 1}</i>`;
                     await bot.sendPhoto(message.chat.id, image, {
