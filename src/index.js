@@ -186,7 +186,6 @@ async function handleCallback(bot, callbackQuery, env) {
 async function sendMainMenu(bot, chat_id, data, message_id = null) {
   const caption = `<b>${escapeHtml(data.title || 'Unknown Title')}</b> (${data.year || 'N/A'})\n\n<i>${escapeHtml(data.plot || 'No summary available.').substring(0, 700)}</i>`;
   
-  // --- MODIFICATION: Updated Keyboard ---
   const keyboard = {
     inline_keyboard: [
         [{ text: '🖼️ View Posters', callback_data: `view:posters:en:0:${data.media_id}` }, { text: '🏞️ View Backdrops', callback_data: `view:backdrops:en:0:${data.media_id}` }],
@@ -226,35 +225,45 @@ async function sendResultsGrid(bot, chat_id, data, media_type, lang, pageIndex, 
     await bot.editMessageText(chat_id, message_id, caption, { parse_mode: PARSE_MODE, reply_markup: keyboard, link_preview_options });
 }
 
-// --- MODIFICATION: New function for details page ---
 async function sendDetailsPage(bot, chat_id, data, message_id) {
     const title = `<b>${escapeHtml(data.title || 'Unknown Title')}</b> (${data.year || 'N/A'})`;
-    const rating = data.rating ? `⭐ ${escapeHtml(String(data.rating))}` : 'N/A';
-    const runtime = data.runtime ? `${escapeHtml(String(data.runtime))}` : 'N/A';
-    const genres = data.genres ? `${escapeHtml(data.genres)}` : 'N/A';
-    const director = data.director ? `<b>Director:</b> ${escapeHtml(data.director)}` : '';
-    const cast = data.cast ? `<b>Cast:</b> ${escapeHtml(data.cast.split(', ').slice(0, 5).join(', '))}` : '';
+    const tagline = data.tagline ? `\n<i>${escapeHtml(data.tagline)}</i>` : '';
+    
+    let details = ``;
+    if (data.rating) details += `\n<b>Rating:</b> ⭐ ${escapeHtml(String(data.rating))}`;
+    if (data.runtime) details += ` | <b>Runtime:</b> ${escapeHtml(data.runtime)}`;
+    if (data.genres) details += `\n<b>Genres:</b> ${escapeHtml(data.genres)}`;
+    if (data.director) details += `\n<b>Director:</b> ${escapeHtml(data.director)}`;
+    if (data.writer) details += `\n<b>Writer:</b> ${escapeHtml(data.writer)}`;
+    if (data.cast) details += `\n<b>Cast:</b> <i>${escapeHtml(data.cast.split(', ').slice(0, 5).join(', '))}...</i>`;
+    if (data.countries) details += `\n<b>Country:</b> ${escapeHtml(data.countries)}`;
+    if (data.languages) details += `\n<b>Languages:</b> ${escapeHtml(data.languages)}`;
+    if (data.box_office) {
+        const formattedBoxOffice = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(data.box_office);
+        details += `\n<b>Box Office:</b> ${escapeHtml(formattedBoxOffice)}`;
+    }
 
-    const text = `${title}\n\n${rating} | ${runtime} | ${genres}\n\n${director}\n${cast}`;
+    const text = `${title}${tagline}\n${details}`;
     
     const imdbUrl = data.imdb_id ? `https://www.imdb.com/title/${data.imdb_id}/` : null;
     const tmdbUrl = data.url;
 
+    const buttonRow = [];
+    if (imdbUrl) buttonRow.push({ text: 'Open IMDb', url: imdbUrl });
+    if (tmdbUrl) buttonRow.push({ text: 'Open TMDB', url: tmdbUrl });
+
     const keyboard = {
         inline_keyboard: [
-            [{ text: 'Open IMDb', url: imdbUrl }, { text: 'Open TMDB', url: tmdbUrl }],
+            buttonRow,
             [{ text: '« Back', callback_data: `back:main:${data.media_id}` }]
         ]
     };
-    
-    // Filter out the IMDb button if no ID is available
-    if (!imdbUrl) {
-        keyboard.inline_keyboard[0] = [{ text: 'Open TMDB', url: tmdbUrl }];
-    }
 
-    await bot.editMessageText(chat_id, message_id, text, { parse_mode: PARSE_MODE, reply_markup: keyboard, link_preview_options: { is_disabled: true }});
+    const previewUrl = data.images?.backdrops?.en?.[0] || data.poster_url || PLACEHOLDER_POSTER;
+    const link_preview_options = { is_disabled: false, url: previewUrl, prefer_large_media: true, show_above_text: true };
+
+    await bot.editMessageText(chat_id, message_id, text, { parse_mode: PARSE_MODE, reply_markup: keyboard, link_preview_options });
 }
-
 
 // --- Utility Functions ---
 
