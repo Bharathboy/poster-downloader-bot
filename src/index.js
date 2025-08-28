@@ -401,7 +401,7 @@ function buildGridKeyboard(totalItems, pageIndex, pageSize, media_type, lang, me
 
 // When original message is a photo, deleting it then sending a new text message ensures the preview (LinkPreviewOptions)
 // can be shown above the text. We delete only when necessary and swallow delete errors (best-effort).
-
+// Replace the sendResultsGrid function in src/index.js with this one:
 async function sendResultsGrid(bot, chat_id, data, media_type = 'posters', lang = 'en', pageIndex = 0, message_id = null, origMessage = null) {
   try {
     const imageList = (data.images?.[media_type]?.[lang]) || [];
@@ -436,16 +436,14 @@ async function sendResultsGrid(bot, chat_id, data, media_type = 'posters', lang 
       show_above_text: true,
     };
 
-    // If message was a photo originally, delete it so we can send a text message with link preview
     if (message_id && origMessage && origMessage.photo) {
       try {
         await bot.deleteMessage(origMessage.chat.id, origMessage.message_id);
       } catch (delErr) {
         console.warn('delete original photo failed (continuing)', delErr);
       }
-      // send new text message with LinkPreviewOptions
       try {
-        await bot.sendMessage(chat_id, caption, { parse_mode: PARSE_MODE, reply_markup: keyboard, LinkPreviewOptions });
+        await bot.sendMessage(chat_id, caption, { parse_mode: PARSE_MODE, reply_markup: keyboard, link_preview_options: LinkPreviewOptions });
         return;
       } catch (err) {
         console.warn('sendMessage with LinkPreviewOptions failed, sending without preview', err);
@@ -454,29 +452,28 @@ async function sendResultsGrid(bot, chat_id, data, media_type = 'posters', lang 
       }
     }
 
-    // If original was not a photo, try to edit text in-place
     if (message_id) {
       try {
-        await bot.editMessageText(chat_id, message_id, caption, { parse_mode: PARSE_MODE, reply_markup: keyboard, LinkPreviewOptions });
+        await bot.editMessageText(chat_id, message_id, caption, { parse_mode: PARSE_MODE, reply_markup: keyboard, link_preview_options: LinkPreviewOptions });
         return;
       } catch (err) {
         console.warn('editMessageText failed, falling back to sendMessage', err);
       }
     }
 
-    // fallback: send new message
     try {
-      await bot.sendMessage(chat_id, caption, { parse_mode: PARSE_MODE, reply_markup: keyboard, LinkPreviewOptions });
+      await bot.sendMessage(chat_id, caption, { parse_mode: PARSE_MODE, reply_markup: keyboard, link_preview_options: LinkPreviewOptions });
     } catch (err) {
       console.warn('sendMessage (grid) failed, fallback to send caption without preview', err);
       await bot.sendMessage(chat_id, caption, { parse_mode: PARSE_MODE, reply_markup: keyboard });
     }
-
   } catch (err) {
     console.error('sendResultsGrid error', err);
   }
 }
 
+
+// Replace the showImagePreview function in src/index.js with this one:
 async function showImagePreview(bot, chat_id, data, media_type, lang, index, message_id = null, origMessage = null) {
   try {
     const image = (data.images?.[media_type]?.[lang] || [])[index];
@@ -500,7 +497,6 @@ async function showImagePreview(bot, chat_id, data, media_type, lang, index, mes
       show_above_text: true,
     };
 
-    // If original message was a photo, delete first and send new message with preview
     if (message_id && origMessage && origMessage.photo) {
       try {
         await bot.deleteMessage(origMessage.chat.id, origMessage.message_id);
@@ -508,7 +504,7 @@ async function showImagePreview(bot, chat_id, data, media_type, lang, index, mes
         console.warn('delete original photo before preview failed', delErr);
       }
       try {
-        await bot.sendMessage(chat_id, caption, { parse_mode: PARSE_MODE, reply_markup: keyboard, LinkPreviewOptions });
+        await bot.sendMessage(chat_id, caption, { parse_mode: PARSE_MODE, reply_markup: keyboard, link_preview_options: LinkPreviewOptions });
         return;
       } catch (err) {
         console.warn('sendMessage (preview with LinkPreviewOptions) failed, fallback to sendPhoto', err);
@@ -517,19 +513,17 @@ async function showImagePreview(bot, chat_id, data, media_type, lang, index, mes
       }
     }
 
-    // If original not photo, try to edit in-place
     if (message_id) {
       try {
-        await bot.editMessageText(chat_id, message_id, caption, { parse_mode: PARSE_MODE, reply_markup: keyboard, LinkPreviewOptions });
+        await bot.editMessageText(chat_id, message_id, caption, { parse_mode: PARSE_MODE, reply_markup: keyboard, link_preview_options: LinkPreviewOptions });
         return;
       } catch (err) {
         console.warn('editMessageText preview failed, falling back to sendMessage', err);
       }
     }
 
-    // final fallback: send message with LinkPreviewOptions
     try {
-      await bot.sendMessage(chat_id, caption, { parse_mode: PARSE_MODE, reply_markup: keyboard, LinkPreviewOptions });
+      await bot.sendMessage(chat_id, caption, { parse_mode: PARSE_MODE, reply_markup: keyboard, link_preview_options: LinkPreviewOptions });
     } catch (err) {
       console.warn('sendMessage preview failed, fallback to sendPhoto', err);
       await bot.sendPhoto(chat_id, image, { caption: caption, parse_mode: PARSE_MODE, reply_markup: keyboard });
@@ -538,7 +532,6 @@ async function showImagePreview(bot, chat_id, data, media_type, lang, index, mes
     console.error('showImagePreview error', err);
   }
 }
-
 async function sendMainMenu(bot, chat_id, data, message_id = null) {
   try {
     const caption = formatMainCaption(data);
