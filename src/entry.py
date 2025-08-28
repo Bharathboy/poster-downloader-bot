@@ -1,7 +1,7 @@
 # src/entry.py
 
 import json
-from workers import Request, Response
+from workers import Request, Response, WorkerEntrypoint
 from telegram_bot import TelegramBot, Dispatcher, Message, CallbackQuery, Update
 
 # -------------------------------------------------
@@ -151,7 +151,7 @@ async def handle_message(bot: TelegramBot, message: Message, env):
              return
 
         api_url = f"https://tmdbapi-eight.vercel.app/api/movie-posters?query={text.replace(' ', '+')}"
-        response = await fetch(api_url)
+        response = await Default.fetch(api_url)
         
         if response.status != 200:
             await bot.send_message(chat_id, f"😕 Sorry, couldn't find anything for '{text}'. Please check the spelling and year.")
@@ -258,61 +258,53 @@ async def handle_callback(bot: TelegramBot, cb: CallbackQuery, env):
 # 4. Main Worker Handler
 # -------------------------------------------------
 
-async def handler(request: Request, env) -> Response:
-    """Main Cloudflare Worker entry point."""
-    bot = TelegramBot(token=env.BOT_TOKEN, dispatcher=dispatcher)
-    url = request.url_obj
-    if request.method == "POST":
-        try:
-            update = await request.json()
-            # Pass the update and environment to the dispatcher
-            await bot.handle_update(update, env)
-        except Exception as e:
-            print(f"Error processing update: {e}")
-            
-    
-    # Handle manual webhook management via browser
-    elif request.method == "GET":
-        # The `/` route sets the webhook. You only need to visit this once.
-        if url.pathname == "/":
-            webhook_url = f"https://{url.hostname}/webhook" # A dedicated path for updates
-            commands = [
-                {"command": "start", "description": "Start the bot"},
-                {"command": "help", "description": "Show help message"},
-            ]
-            await bot.set_my_commands(commands)
-            result = await bot.set_webhook(webhook_url, options={"drop_pending_updates": True})
-            
-            if result.get("ok"):
-                return Response(f"✅ Webhook set successfully to {webhook_url}\n🤖 Bot commands updated.")
-            else:
-                return Response(f"❌ Failed to set webhook: {result.get('description')}", status=500)
-
-        # The `/delete` route removes the webhook
-        elif url.pathname == "/delete":
-            result = await bot.delete_webhook()
-            if result.get("ok"):
-                message = "✅ Webhook deleted successfully!"
-                return Response(message, status=200)
-            else:
-                description = result.get('description', 'Unknown error')
-                message = f"❌ Failed to delete webhook. Reason: {description}"
-                return Response(message, status=500)
-
-        # The `/status` route checks the current webhook info
-        elif url.pathname == "/status":
-            result = await bot._post_json("getWebhookInfo", {})
-            # Pretty-print the JSON for readability in the browser
-            pretty_result = json.dumps(result, indent=2)
-            return Response(pretty_result, headers={"Content-Type": "application/json"})
-
-    return Response("Not Found. Visit `/` to set webhook, `/delete` to remove it, or `/status` to check it.", status=404)
-# --- ADD THIS CODE AT THE VERY END OF THE FILE ---
-
-# Create a class that the Cloudflare runtime will use as the entry point.
-# This explicitly registers the 'fetch' event handler.
-class Entry:
+class Default(WorkerEntrypoint):
     async def fetch(self, request: Request, env, ctx) -> Response:
-        return await handler(request, env)
+        """Main Cloudflare Worker entry point."""
+        bot = TelegramBot(token=env.BOT_TOKEN, dispatcher=dispatcher)
+        url = request.url_obj
+        if request.method == "POST":
+            try:
+                update = await request.json()
+                # Pass the update and environment to the dispatcher
+                await bot.handle_update(update, env)
+            except Exception as e:
+                print(f"Error processing update: {e}")
 
-export = Entry()
+
+        # Handle manual webhook management via browser
+        elif request.method == "GET":
+            # The `/` route sets the webhook. You only need to visit this once.
+            if url.pathname == "/":
+                webhook_url = f"https://{url.hostname}/webhook" # A dedicated path for updates
+                commands = [
+                    {"command": "start", "description": "Start the bot"},
+                    {"command": "help", "description": "Show help message"},
+                ]
+                await bot.set_my_commands(commands)
+                result = await bot.set_webhook(webhook_url, options={"drop_pending_updates": True})
+
+                if result.get("ok"):
+                    return Response(f"✅ Webhook set successfully to {webhook_url}\n🤖 Bot commands updated.")
+                else:
+                    return Response(f"❌ Failed to set webhook: {result.get('description')}", status=500)
+
+            # The `/delete` route removes the webhook
+            elif url.pathname == "/delete":
+                result = await bot.delete_webhook()
+                if result.get("ok"):
+                    message = "✅ Webhook deleted successfully!"
+                    return Response(message, status=200)
+                else:
+                    description = result.get('description', 'Unknown error')
+                    message = f"❌ Failed to delete webhook. Reason: {description}"
+                    return Response(message, status=500)
+
+            # The `/status` route checks the current webhook info
+            elif url.pathname == "/status":
+                result = await bot._post_json("getWebhookInfo", {})
+                # Pretty-print the JSON for readability in the browser
+                pretty_result = json.dumps(result, indent=2)
+                return Response(pretty_result, headers={"Content-Type": "application/json"})
+
+        return Response("Not Found. Visit `/` to set webhook, `/delete` to remove it, or `/status` to check it.", status=404)
