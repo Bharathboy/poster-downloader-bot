@@ -307,3 +307,12 @@ async def handler(request: Request, env) -> Response:
             return Response(pretty_result, headers={"Content-Type": "application/json"})
 
     return Response("Not Found. Visit `/` to set webhook, `/delete` to remove it, or `/status` to check it.", status=404)
+# --- ADD THIS CODE AT THE VERY END OF THE FILE ---
+
+# Create a class that the Cloudflare runtime will use as the entry point.
+# This explicitly registers the 'fetch' event handler.
+class Entry:
+    async def fetch(self, request: Request, env, ctx) -> Response:
+        return await handler(request, env)
+
+export = Entry()
