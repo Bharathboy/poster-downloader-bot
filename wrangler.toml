@@ -1,0 +1,15 @@
+name = "poster-bot"
+main = "src/entry.py"
+compatibility_date = "2025-08-26"
+
+# ✅ Enable Python Workers explicitly
+compatibility_flags = [ "python_workers" ]
+
+
+
+[[kv_namespaces]]
+binding = "BOT_STATE"
+id = "a6e1ceb45d08400ba4bf50ab2921abe5"
+
+[vars]
+API_BASE_URL = "https://api.telegram.org"
