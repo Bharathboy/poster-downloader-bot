@@ -1,7 +1,7 @@
 # src/entry.py
 
 import json
-from workers import Request, Response, WorkerEntrypoint
+from workers import Request, Response, WorkerEntrypoint, fetch 
 from telegram_bot import TelegramBot, Dispatcher, Message, CallbackQuery, Update
 
 # -------------------------------------------------
@@ -151,7 +151,7 @@ async def handle_message(bot: TelegramBot, message: Message, env):
              return
 
         api_url = f"https://tmdbapi-eight.vercel.app/api/movie-posters?query={text.replace(' ', '+')}"
-        response = await Default.fetch(api_url)
+        response = await fetch(api_url)
         
         if response.status != 200:
             await bot.send_message(chat_id, f"😕 Sorry, couldn't find anything for '{text}'. Please check the spelling and year.")
