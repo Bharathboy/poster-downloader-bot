@@ -12,7 +12,7 @@ const GRID_PAGE_SIZE = 20;
 const GRID_COLS = 5;
 
 // --- Static Content (HTML formatted) ---
-const ABOUT_TEXT = `<b>About PosterFlix</b>\n\nThis bot helps you preview and download official movie & TV posters and backdrops from The Movie Database (TMDB).\n\n<b>Features</b>\n• High-resolution image access\n• Multi-language support\n• Smart search with year hints`;
+const ABOUT_TEXT = `<blockquote><b>This bot is based on PosterFlix Website</b></blockquote>\n\n<b>About PosterFlix</b>\n\nThis bot helps you preview and download official movie & TV posters and backdrops from The Movie Database (TMDB).\n\n<b>Features</b>\n• High-resolution image access\n• Multi-language support\n• Smart search with year hints`;
 const FAQ_TEXT = `<b>Frequently Asked Questions</b>\n\n<b>Q: Do you host any images?</b>\nA: No — images are linked directly from TMDB in real time.\n\n<b>Q: Is this bot affiliated with TMDB?</b>\nA: No. This is an independent project using TMDB's public API.`;
 const DISCLAIMER_TEXT = `<b>Legal Disclaimer</b>\n\nThis bot uses the TMDB API and is not endorsed by TMDB. All images and copyrights belong to their respective owners. Use for personal, non-commercial purposes only.`;
 
@@ -289,10 +289,10 @@ async function sendLanguageSelection(bot, message, mediaData, mediaType) {
     const buttons = langs.sort().map((langKey) => {
         const count = (mediaData.images?.[mediaType]?.[langKey] || []).length;
         const label = `${langKey === "all"
-                ? "All"
-                : langKey.length === 2
-                    ? langKey.toUpperCase()
-                    : langKey
+            ? "All"
+            : langKey.length === 2
+                ? langKey.toUpperCase()
+                : langKey
             } (${count})`;
         return [
             {
@@ -328,7 +328,11 @@ async function handleMessage(bot, message, env) {
         if (text.startsWith("/")) {
             const command = text.split(" ")[0].toLowerCase();
             const buttons = [
-                [{ text: "Update Channel", url: UPDATE_CHANNEL }],
+                [
+                    { text: "Update Channel", url: UPDATE_CHANNEL }],
+                [
+                    { text: "PosterFlix Web App", web_app: { url: "https://posterflix.vercel.app/" } }
+                ]
             ];
             if (command === "/start") {
                 await env.USER_STORE.put(String(userId), "1");
@@ -351,7 +355,7 @@ async function handleMessage(bot, message, env) {
                 );
             }
             if (command === "/about")
-                return bot.sendMessage(chatId, ABOUT_TEXT, { parse_mode: PARSE_MODE });
+                return bot.sendMessage(chatId, ABOUT_TEXT, { parse_mode: PARSE_MODE, reply_markup: {inline_keyboard: buttons,}, });
             if (command === "/faq")
                 return bot.sendMessage(chatId, FAQ_TEXT, { parse_mode: PARSE_MODE });
             if (command === "/disclaimer")
