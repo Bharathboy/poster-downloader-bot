@@ -119,13 +119,19 @@ async function handleCallback(bot, callbackQuery, env) {
     if (action === 'noop' || !callbackQuery.data) return;
 
     try {
+        const message = callbackQuery.message;
+        
+        // --- MODIFICATION: Handle close action early ---
+        if (action === 'close') {
+            return bot.deleteMessage(message.chat.id, message.message_id);
+        }
+
         const media_id = params[params.length - 1];
         const dataStr = await env.BOT_STATE.get(`media:${media_id}`);
         if (!dataStr) {
             return bot.answerCallbackQuery(cb_id, { text: 'Session expired. Please search again.', show_alert: true });
         }
         const data = JSON.parse(dataStr);
-        const message = callbackQuery.message;
 
         switch (action) {
             case 'view': {
@@ -151,7 +157,10 @@ async function handleCallback(bot, callbackQuery, env) {
                 const index = parseInt(indexStr, 10);
                 const image = (data.images?.[media_type]?.[lang] || [])[index];
                 if (image) {
-                    await bot.sendPhoto(message.chat.id, image, { caption: `<b>${escapeHtml(data.title || '')}</b> — <i>${escapeHtml(media_type)}</i>`, parse_mode: PARSE_MODE });
+                    // --- MODIFICATION: Enhanced caption ---
+                    const lang_name = lang.length === 2 ? lang.toUpperCase() : "No Language";
+                    const caption = `<b>${escapeHtml(data.title || '')}</b>\n<i>${escapeHtml(media_type)} | Language: ${lang_name} | Image #${index + 1}</i>`;
+                    await bot.sendPhoto(message.chat.id, image, { caption: caption, parse_mode: PARSE_MODE });
                 }
                 break;
             }
@@ -189,7 +198,11 @@ async function sendMainMenu(bot, chat_id, data, message_id = null) {
   const keyboard = {
     inline_keyboard: [
         [{ text: '🖼️ View Posters', callback_data: `view:posters:en:0:${data.media_id}` }, { text: '🏞️ View Backdrops', callback_data: `view:backdrops:en:0:${data.media_id}` }],
-        [{ text: 'ℹ️ More Info', callback_data: `details:${data.media_id}` }, { text: '🔁 Share', switch_inline_query: `${data.title || ''}` }]
+        [{ text: 'ℹ️ More Info', callback_data: `details:${data.media_id}` }, 
+         // --- MODIFICATION: Fixed Share Button ---
+         { text: '🔁 Share', switch_inline_query_current_chat: `${data.title || ''} ${data.year || ''}` }],
+        // --- MODIFICATION: Added Close Button ---
+        [{ text: '❌ Close', callback_data: `close` }]
     ]
   };
   
